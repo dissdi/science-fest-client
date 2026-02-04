@@ -1,6 +1,12 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
-import os, uuid
+from typing import Any, Dict, List
+import os
+import time
+import uuid
+
+import cv2
+import requests
 
 app = FastAPI()
 
@@ -30,7 +36,11 @@ class ResetIn(BaseModel):
 DEMO_AUTO_TOOLS = os.getenv("DEMO_AUTO_TOOLS", "true").lower() == "true"
 DASHBOARD_UPLOAD_URL = os.getenv("DASHBOARD_UPLOAD_URL", "").strip()
 
-ALLOWED_UPLOAD_HOSTS = set(filter(None, os.getenv("ALLOWED_UPLOAD_HOSTS", "").split(",")))
+ALLOWED_UPLOAD_HOSTS = {
+    host.strip()
+    for host in os.getenv("ALLOWED_UPLOAD_HOSTS", "").split(",")
+    if host.strip()
+}
 # 예: ALLOWED_UPLOAD_HOSTS="127.0.0.1,localhost,192.168.0.10"
 
 def extract_text_from_files(paths: List[str], max_chars: int = 12000) -> str:
