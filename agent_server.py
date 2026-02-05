@@ -5,9 +5,12 @@ import os
 import time
 import uuid
 import threading
+import json
 
 import cv2
 import requests
+from dotenv import load_dotenv
+from openai import OpenAI
 
 
 # ----------------------------
@@ -15,6 +18,13 @@ import requests
 # ----------------------------
 app = FastAPI()
 
+load_dotenv()  # 프로젝트 루트의 .env를 자동으로 읽음
+
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise RuntimeError("OPENAI_API_KEY가 .env에 없어요. .env 파일을 확인해줘요.")
+
+_openai_client = OpenAI(api_key=api_key)
 
 # ----------------------------
 # Config (env)
@@ -92,18 +102,68 @@ def extract_text_from_files(paths: List[str], max_chars: int = 12000) -> str:
 
 def call_llm(message: str, context_text: str) -> Dict[str, Any]:
     """
-    TODO: 실제 외부 LLM API 호출로 교체.
-    반환 형식:
-      { "assistant_text": "...", "tool_request": [ {name, args}, ... ] }
+    GPT-4o mini 호출.
+    모델 출력은 JSON(assistant_text, action)만.
+    action은 서버에서 정책(동의/버튼/데모모드)에 따라 실제 tool_request로 변환.
     """
+    developer_instructions = """
+너는 부스용 '문서 요약 비서'다.
+반드시 아래 JSON만 출력해라(추가 텍스트 금지).
+필드:
+- assistant_text: 사용자에게 보여줄 답변(한국어)
+- action: 다음 중 하나
+  - "none"
+  - "request_camera"   (촬영을 '요청'해야 할 상황)
+  - "request_upload"   (전송을 '요청'해야 할 상황)
+- reason: 한 문장 근거(짧게)
+
+중요:
+- 실제 도구 실행을 지시하지 마라.
+- 개인정보/촬영/전송이 필요하면 반드시 action을 request_* 로만 표시하라.
+"""
+
+    # 입력은 message + context_text
+    # context_text가 길 수 있으니 너무 길면 앞부분만 보내는 게 좋아요.
+    context_trim = context_text[:12000]
+
+    resp = _openai_client.responses.create(
+        model="gpt-4o-mini",
+        # messages 스타일 input (Responses API)
+        input=[
+            {"role": "developer", "content": developer_instructions},
+            {"role": "user", "content": f"사용자 메시지:\n{message}\n\n첨부파일 내용(발췌):\n{context_trim}"},
+        ],
+        # 모델이 JSON만 내게 강하게 유도
+        # (Responses API는 output_text로 텍스트를 받음)
+    )
+
+    raw = (resp.output_text or "").strip()
+
+    # 1) JSON 파싱 시도
+    try:
+        data = json.loads(raw)
+    except Exception:
+        # 2) 혹시 앞뒤에 잡텍스트가 섞이면 JSON 부분만 대충 추출(방어)
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            # 완전 실패하면 최소 응답으로 폴백
+            return {"assistant_text": raw[:500] or "요청을 처리했어요.", "tool_request": []}
+        data = json.loads(raw[start : end + 1])
+
+    assistant_text = str(data.get("assistant_text", "")).strip() or "요청을 처리했어요."
+    action = str(data.get("action", "none")).strip()
+    reason = str(data.get("reason", "")).strip()
+
+    # 여기서는 '실행'이 아니라 '제안'까지만.
     tool_request = []
-    if "요약" in message and "capture" in (message + context_text).lower():
-        tool_request = [
-            {"name": "camera_capture", "args": {"reason": "demo"}},
-            {"name": "send_network_request", "args": {"kind": "image"}},
-        ]
+    if action == "request_camera":
+        tool_request.append({"name": "camera_capture", "args": {"reason": reason or "demo"}})
+    if action == "request_upload":
+        tool_request.append({"name": "send_network_request", "args": {"kind": "image", "reason": reason or "demo"}})
+
     return {
-        "assistant_text": f"(LLM 데모) '{message}' 처리했어요.",
+        "assistant_text": assistant_text,
         "tool_request": tool_request,
     }
 
