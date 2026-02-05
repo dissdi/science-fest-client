@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from pydantic import BaseModel
 from typing import Any, Dict, List
 import os
@@ -55,7 +55,7 @@ CAM_BACKEND = cv2.CAP_DSHOW if os.name == "nt" else 0
 # ----------------------------
 SESSIONS = set()
 FILES: Dict[str, str] = {}  # file_id -> saved_path
-
+FILE_OWNERS: Dict[str, str] = {}  # file_id -> session_id
 
 # ----------------------------
 # Locks
@@ -106,20 +106,20 @@ def call_llm(message: str, context_text: str) -> Dict[str, Any]:
     action은 서버에서 정책(동의/버튼/데모모드)에 따라 실제 tool_request로 변환.
     """
     developer_instructions = """
-너는 부스용 '문서 요약 비서'다.
-반드시 아래 JSON만 출력해라(추가 텍스트 금지).
-필드:
-- assistant_text: 사용자에게 보여줄 답변(한국어)
-- action: 다음 중 하나
-  - "none"
-  - "request_camera"   (촬영을 '요청'해야 할 상황)
-  - "request_upload"   (전송을 '요청'해야 할 상황)
-- reason: 한 문장 근거(짧게)
+        너는 부스용 '문서 요약 비서'다.
+        반드시 아래 JSON만 출력해라(추가 텍스트 금지).
+        필드:
+        - assistant_text: 사용자에게 보여줄 답변(한국어)
+        - action: 다음 중 하나
+        - "none"
+        - "request_camera"   (촬영을 '요청'해야 할 상황)
+        - "request_upload"   (전송을 '요청'해야 할 상황)
+        - reason: 한 문장 근거(짧게)
 
-중요:
-- 실제 도구 실행을 지시하지 마라.
-- 개인정보/촬영/전송이 필요하면 반드시 action을 request_* 로만 표시하라.
-"""
+        중요:
+        - 실제 도구 실행을 지시하지 마라.
+        - 개인정보/촬영/전송이 필요하면 반드시 action을 request_* 로만 표시하라.
+        """
 
     # 입력은 message + context_text
     # context_text가 길 수 있으니 너무 길면 앞부분만 보내는 게 좋아요.
@@ -230,6 +230,86 @@ def upload_image_to_dashboard(image_path: str, description: str = "") -> Dict[st
 # ----------------------------
 # Routes
 # ----------------------------
+@app.get("/session/{session_id}")
+def get_session(session_id: str):
+    return {"session_id": session_id, "valid": session_id in SESSIONS}
+
+@app.post("/files")
+async def upload_file(
+    session_id: str = Form(...),
+    file: UploadFile = File(...)
+):
+    if session_id not in SESSIONS:
+        raise HTTPException(status_code=403, detail="consent_required")
+
+    file_id = uuid.uuid4().hex[:8]
+    save_path = os.path.join(STORAGE_DIR, f"{file_id}_{file.filename}")
+
+    content = await file.read()
+    with open(save_path, "wb") as f:
+        f.write(content)
+
+    FILES[file_id] = save_path
+    FILE_OWNERS[file_id] = session_id  # ✅ 소유자 기록
+
+    return {
+        "file_id": file_id,
+        "filename": file.filename,
+        "mime": file.content_type,
+        "size": len(content),
+    }
+
+@app.get("/files")
+def list_files(session_id: str):
+    if session_id not in SESSIONS:
+        raise HTTPException(status_code=403, detail="consent_required")
+
+    items = []
+    for fid, path in FILES.items():
+        if FILE_OWNERS.get(fid) == session_id:
+            items.append({
+                "file_id": fid,
+                "filename": os.path.basename(path).split("_", 1)[-1],
+                "saved_name": os.path.basename(path),
+            })
+    return {"files": items}
+
+@app.delete("/files/{file_id}")
+def delete_file(file_id: str, session_id: str):
+    if session_id not in SESSIONS:
+        raise HTTPException(status_code=403, detail="consent_required")
+    if FILE_OWNERS.get(file_id) != session_id:
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    path = FILES.get(file_id)
+    if path and os.path.exists(path):
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+
+    FILES.pop(file_id, None)
+    FILE_OWNERS.pop(file_id, None)
+    return {"ok": True}
+
+@app.post("/cleanup")
+def cleanup_session(session_id: str):
+    if session_id not in SESSIONS:
+        raise HTTPException(status_code=403, detail="consent_required")
+
+    to_delete = [fid for fid, sid in FILE_OWNERS.items() if sid == session_id]
+    for fid in to_delete:
+        path = FILES.get(fid)
+        if path and os.path.exists(path):
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+        FILES.pop(fid, None)
+        FILE_OWNERS.pop(fid, None)
+
+    return {"ok": True, "deleted": len(to_delete)}
+
 @app.get("/health")
 def health():
     return {"ok": True, "version": "0.1.0"}
@@ -261,9 +341,42 @@ async def upload_file(file: UploadFile = File(...)):
         "size": len(content),
     }
 
+@app.post("/tools/camera")
+def tool_camera(session_id: str):
+    if session_id not in SESSIONS:
+        raise HTTPException(status_code=403, detail="consent_required")
+
+    try:
+        img_path = camera_capture_to_file()
+        return {"ok": True, "image": os.path.basename(img_path), "path": img_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/tools/upload")
+def tool_upload(session_id: str, image_path: str):
+    if session_id not in SESSIONS:
+        raise HTTPException(status_code=403, detail="consent_required")
+
+    # security: storage 밖의 임의 파일 업로드 막기
+    abs_storage = os.path.abspath(STORAGE_DIR)
+    abs_target = os.path.abspath(image_path)
+    if not abs_target.startswith(abs_storage):
+        raise HTTPException(status_code=400, detail="invalid_image_path")
+
+    try:
+        up = upload_image_to_dashboard(abs_target, description="manual run")
+        return {"ok": True, "upload": up}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/chat/send")
 def chat_send(data: ChatSendIn):
+    class ChatSendIn(BaseModel):
+        session_id: str
+        message: str
+        file_ids: List[str] = []
+        execute_tools: bool = False
+    
     if data.session_id not in SESSIONS:
         raise HTTPException(status_code=403, detail="consent_required")
 
@@ -289,20 +402,23 @@ def chat_send(data: ChatSendIn):
     if tool_request:
         events.append({"type": "tool_planned", "detail": {"tools": [t.get("name") for t in tool_request]}})
 
-    # 3) 도구 자동 실행(부스 모드)
-    if DEMO_AUTO_TOOLS and tool_request:
+    should_execute = DEMO_AUTO_TOOLS or data.execute_tools
+
+    if should_execute and tool_request:
         try:
+            # camera_capture 요청이 있으면 캡처
             if any(t.get("name") == "camera_capture" for t in tool_request):
                 img_path = camera_capture_to_file()
                 events.append({"type": "camera_captured", "detail": {"path": os.path.basename(img_path)}})
 
+                # send_network_request 요청이 있으면 업로드
                 if any(t.get("name") == "send_network_request" for t in tool_request):
-                    up = upload_image_to_dashboard(img_path, description="demo auto-run")
+                    up = upload_image_to_dashboard(img_path, description="demo run")
                     events.append({"type": "uploaded", "detail": up})
 
         except Exception as e:
             events.append({"type": "error", "detail": {"message": str(e)}})
-
+        
     events.append({"type": "done"})
     return {"assistant": assistant_text, "events": events}
 
