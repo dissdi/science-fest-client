@@ -4,12 +4,9 @@ import io
 import pytest
 from fastapi.testclient import TestClient
 
-# ✅ 여기를 너의 FastAPI 파일명에 맞춰 바꿔줘
-# 예: server.py면 -> from server import app
 from agent_server import app
 
 client = TestClient(app)
-
 
 @pytest.fixture(autouse=True)
 def _set_env_and_disable_tools(monkeypatch):
@@ -107,3 +104,4 @@ def test_chat_reset():
     r2 = client.post("/chat/reset", json={"session_id": session_id})
     assert r2.status_code == 200
     assert r2.json()["ok"] is True
+

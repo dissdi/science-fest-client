@@ -16,15 +16,14 @@ from openai import OpenAI
 # ----------------------------
 # App
 # ----------------------------
-app = FastAPI()
-
 load_dotenv()  # 프로젝트 루트의 .env를 자동으로 읽음
 
 api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise RuntimeError("OPENAI_API_KEY가 .env에 없어요. .env 파일을 확인해줘요.")
 
-_openai_client = OpenAI(api_key=api_key)
+from openai import OpenAI
+_openai_client = OpenAI(api_key=api_key) if api_key else None
+
+app = FastAPI()
 
 # ----------------------------
 # Config (env)
