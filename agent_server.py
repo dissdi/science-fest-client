@@ -96,19 +96,60 @@ class ResetIn(BaseModel):
 # ----------------------------
 # Helpers
 # ----------------------------
+def extract_text_from_pdf(pdf_path: str, max_chars: int = 12000) -> str:
+    import fitz  # PyMuPDF
+
+    doc = fitz.open(pdf_path)
+    parts = []
+    total = 0
+
+    for i, page in enumerate(doc):
+        # ✅ 색상(흰색/검정) 상관없이 "텍스트"로 뽑힘
+        txt = page.get_text("text") or ""
+        txt = txt.strip()
+        if txt:
+            chunk = f"\n\n[PDF:{os.path.basename(pdf_path)} p{i+1}]\n{txt}"
+            parts.append(chunk)
+            total += len(chunk)
+            if total >= max_chars:
+                break
+
+    doc.close()
+    return ("".join(parts))[:max_chars]
+
 def extract_text_from_files(paths: List[str], max_chars: int = 12000) -> str:
-    """데모용: txt/md/log 위주. 지원 안 하는 형식은 파일명만 컨텍스트로."""
+    """PDF(벡터 텍스트)만 추출해서 컨텍스트로 만든다. 그 외 파일은 무시."""
     chunks: List[str] = []
+    total = 0
+
     for p in paths:
         ext = os.path.splitext(p)[1].lower()
-        if ext in [".txt", ".md", ".log"]:
-            try:
-                with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                    chunks.append(f"\n\n[FILE:{os.path.basename(p)}]\n" + f.read())
-            except Exception:
-                continue
-        else:
-            chunks.append(f"\n\n[FILE:{os.path.basename(p)}] (text extract skipped)")
+        if ext != ".pdf":
+            continue
+
+        try:
+            remaining = max_chars - total
+            if remaining <= 0:
+                break
+
+            chunk = extract_text_from_pdf(p, max_chars=remaining)
+            if chunk.strip():
+                chunks.append(chunk)
+                total += len(chunk)
+            else:
+                # PDF인데 텍스트가 아예 없으면(스캔본 등) 표시만 남김
+                msg = f"\n\n[PDF:{os.path.basename(p)}] (no extractable text)"
+                chunks.append(msg)
+                total += len(msg)
+
+        except Exception:
+            msg = f"\n\n[PDF:{os.path.basename(p)}] (pdf extract failed)"
+            chunks.append(msg)
+            total += len(msg)
+
+        if total >= max_chars:
+            break
+
     return ("".join(chunks))[:max_chars]
 
 
