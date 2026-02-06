@@ -354,7 +354,7 @@ def chat_send(data: ChatSendIn):
     events.append({"type": "done"})
     return {"assistant": assistant_text, "events": events}
 
-
+# 해당 file_id 파일을(세션 소유 확인 후) 서버 저장소에서 삭제
 @app.delete("/files/{file_id}")
 def delete_file(file_id: str, session_id: str):
     if session_id not in SESSIONS:
@@ -385,7 +385,7 @@ def delete_file(file_id: str, session_id: str):
 
     return {"ok": True}
 
-
+# 해당 세션이 올린 파일들을 한꺼번에 정리(삭제)해서 저장소를 비움
 @app.post("/cleanup")
 def cleanup_session(session_id: str):
     if session_id not in SESSIONS:
@@ -413,8 +413,7 @@ def cleanup_session(session_id: str):
     return {"ok": True, "deleted": deleted}
 
 
-# - 기존 session_id의 파일/첨부를 정리하고
-# - 새로운 session_id를 발급해서 반환
+# 현재 세션을 초기화하고(필요하면 새 session_id 발급) 대화/첨부 상태를 새로 시작
 @app.post("/chat/reset")
 def chat_reset(data: ResetIn):
     old_sid = data.session_id
@@ -449,9 +448,7 @@ def chat_reset(data: ResetIn):
 
     return {"ok": True, "session_id": new_sid, "reset_from": old_sid}
 
-
-# - storage 내부의 이미지 파일(캡처 등)을 DASHBOARD_UPLOAD_URL로 업로드하는 엔드포인트
-# - 존재/확장자도 최소 검증
+# storage 안에 있는 이미지 파일 경로를 받아 대시보드(외부 서버)로 업로드
 @app.post("/tools/upload")
 def tool_upload(session_id: str, image_path: str):
     if session_id not in SESSIONS:
