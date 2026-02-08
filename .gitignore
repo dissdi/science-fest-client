@@ -1,3 +1,5 @@
 *.key
 *.env
+*.png
+*.pdf
 openai_api_key.txt

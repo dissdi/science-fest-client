@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
+import numpy as np
 import os
 import time
 import uuid
@@ -57,6 +58,9 @@ CAM_W = int(os.getenv("CAM_W", "1280"))
 CAM_H = int(os.getenv("CAM_H", "720"))
 CAM_WARMUP = int(os.getenv("CAM_WARMUP", "8"))
 
+DUMMY_CAMERA = os.getenv("DUMMY_CAMERA", "false").lower() == "true"
+DUMMY_UPLOAD=True
+
 # Windows면 CAP_DSHOW가 안정적인 편, 그 외 OS면 기본값 사용
 CAM_BACKEND = cv2.CAP_DSHOW if os.name == "nt" else 0
 
@@ -86,6 +90,7 @@ class ConsentIn(BaseModel):
 class ChatSendIn(BaseModel):
     session_id: str
     message: str
+    file_ids: List[str] = []
     execute_tools: bool = False
 
 
@@ -177,7 +182,7 @@ def call_llm(message: str, context_text: str) -> Dict[str, Any]:
         출력 형식:
         {
             "assistant_text": "...",
-            "action": "request_camera" | "request_upload" | "none",
+            "action": ["request_camera", "request_upload"] | ["request_camera"] | ["request_upload"] | [],
             "reason": "..."
         }
         """
@@ -215,24 +220,36 @@ def call_llm(message: str, context_text: str) -> Dict[str, Any]:
         data = json.loads(raw[start : end + 1])
 
     assistant_text = str(data.get("assistant_text", "")).strip() or "요청을 처리했어요."
-    action = str(data.get("action", "none")).strip()
+    action = data.get("action", [])
+    if isinstance(action, str):
+        action = [action]
+    elif action is None:
+        action = []
     reason = str(data.get("reason", "")).strip()
 
     # 여기서는 '실행'이 아니라 '제안'까지만.
     tool_request = []
-    if action == "request_camera":
+    if "request_camera" in action:
         tool_request.append({"name": "camera_capture", "args": {"reason": reason or "demo"}})
-    if action == "request_upload":
+    if "request_upload" in action:
         tool_request.append({"name": "send_network_request", "args": {"kind": "image", "reason": reason or "demo"}})
+
 
     return {
         "assistant_text": assistant_text,
         "tool_request": tool_request,
     }
-
+    
+def _make_dummy_image(out_path: str):
+    img = np.zeros((480, 640, 3), dtype=np.uint8)
+    # 간단한 안내 텍스트
+    cv2.putText(img, "DUMMY CAMERA IMAGE", (30, 200),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+    cv2.imwrite(out_path, img)
 
 def camera_capture_to_file(out_dir: str = STORAGE_DIR) -> str:
     """OpenCV로 현재 프레임 1장 저장."""
+    print("[DBG] camera_capture_to_file called, DUMMY_CAMERA=", DUMMY_CAMERA)
     with CAM_LOCK:
         filename = f"capture_{int(time.time())}.jpg"
         path = os.path.join(out_dir, filename)
@@ -240,6 +257,12 @@ def camera_capture_to_file(out_dir: str = STORAGE_DIR) -> str:
         cap = cv2.VideoCapture(CAM_INDEX, CAM_BACKEND)
         if not cap.isOpened():
             cap.release()
+            
+            if DUMMY_CAMERA: # for test
+                file_id = str(uuid.uuid4())
+                out_path = os.path.join(STORAGE_DIR, f"{file_id}.png")
+                _make_dummy_image(out_path)
+                return out_path
             raise RuntimeError(f"camera_open_failed (index={CAM_INDEX})")
 
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAM_W)
@@ -253,6 +276,7 @@ def camera_capture_to_file(out_dir: str = STORAGE_DIR) -> str:
         if not ok or frame is None:
             cap.release()
             raise RuntimeError("camera_read_failed")
+
 
         ok2 = cv2.imwrite(path, frame)
         cap.release()
