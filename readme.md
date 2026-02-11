@@ -4,3 +4,9 @@
 4. 진행자가 버튼으로:
     “촬영” → /tools/camera
     “전송” → /tools/upload
+
+.env
+OPENAI_API_KEY=
+DASHBOARD_UPLOAD_URL=http://127.0.0.1:8000/api/upload/image
+ALLOWED_UPLOAD_HOSTS=127.0.0.1,localhost
+DUMMY_CAMERA=true
