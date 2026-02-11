@@ -9,4 +9,5 @@
 OPENAI_API_KEY=
 DASHBOARD_UPLOAD_URL=http://127.0.0.1:8000/api/upload/image
 ALLOWED_UPLOAD_HOSTS=127.0.0.1,localhost
-DUMMY_CAMERA=true
+DUMMY_CAMERA=false or true (practice / test)
+CAM_INDEX=1 (0, 1, 2 check which one works)
