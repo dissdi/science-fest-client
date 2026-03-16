@@ -8,6 +8,5 @@ wheels/
 
 # Virtual environments
 .venv
-uploads
 hack_log.json
 hack_count.txt
