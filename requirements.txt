@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+requests
+numpy
+opencv-python
+openai
+PyMuPDF
+python-multipart
+aiofiles
+streamlit

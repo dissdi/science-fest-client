@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>해커 서버 대시보드</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #222; color: #eee; }
+        h1 { color: #ff5252; }
+        .count { font-size: 2em; margin-bottom: 1em; }
+        .log-table { width: 100%; border-collapse: collapse; background: #333; }
+        .log-table th, .log-table td { border: 1px solid #444; padding: 8px; }
+        .log-table th { background: #444; }
+        .log-table tr:nth-child(even) { background: #282828; }
+        .image-thumb { max-width: 120px; max-height: 120px; }
+    </style>
+</head>
+<body>
+    <h1>해커 서버 대시보드</h1>
+    <div class="count">해킹된 인원: <span style="color:#ff5252">{{ count }}</span> 명</div>
+    <table class="log-table">
+        <thead>
+            <tr>
+                <th>타입</th>
+                <th>타임스탬프</th>
+                <th>설명/데이터</th>
+                <th>이미지</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for log in logs[::-1] %}
+            <tr>
+                <td>{{ log.type }}</td>
+                <td>{{ log.timestamp }}</td>
+                <td>
+                    {% if log.type == 'image' %}
+                        {{ log.description or '' }}
+                    {% elif log.type == 'text' %}
+                        {% if log.data is string %}
+                            <pre>{{ log.data }}</pre>
+                        {% else %}
+                            <pre>
+                            {% for k, v in log.data.items() %}
+                                {{ k }}: {{ v }}
+                            {% endfor %}
+                            </pre>
+                        {% endif %}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.type == 'image' %}
+                        {% if log.get('deleted') %}
+                            <span style="color:#ff5252;font-weight:bold;">(시연자에 요청에 의해 지워짐)</span>
+                        {% else %}
+                            <img src="/uploads/{{ log.filename }}" class="image-thumb" />
+                            <form method="post" action="/delete_image" style="display:inline;">
+                                <input type="hidden" name="filename" value="{{ log.filename }}" />
+                                <button type="submit" style="background:#ff5252;color:#fff;border:none;padding:4px 8px;cursor:pointer;">지우기</button>
+                            </form>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
