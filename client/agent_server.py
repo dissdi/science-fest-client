@@ -20,7 +20,8 @@ from openai import OpenAI
 # ----------------------------
 # App
 # ----------------------------
-load_dotenv()  # 프로젝트 루트의 .env를 자동으로 읽음
+load_dotenv(".env")
+load_dotenv(".env.secret")
 
 api_key = os.getenv("OPENAI_API_KEY")
 _openai_client = OpenAI(api_key=api_key) if api_key else None
