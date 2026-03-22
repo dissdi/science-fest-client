@@ -45,14 +45,22 @@ STORAGE_DIR = "storage"
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
 DEMO_AUTO_TOOLS = os.getenv("DEMO_AUTO_TOOLS", "true").lower() == "true"
-DASHBOARD_UPLOAD_URL = os.getenv("DASHBOARD_UPLOAD_URL", "").strip()
+
+SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1").strip()
+SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
+
+CLIENT_HOST = os.getenv("CLIENT_HOST", "127.0.0.1").strip()
+CLIENT_PORT = int(os.getenv("CLIENT_PORT", "5177"))
+
+SERVER_BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
+CLIENT_BASE_URL = f"http://{CLIENT_HOST}:{CLIENT_PORT}"
+DASHBOARD_UPLOAD_URL = f"{SERVER_BASE_URL}/api/upload/image"
 
 ALLOWED_UPLOAD_HOSTS = {
-    host.strip()
-    for host in os.getenv("ALLOWED_UPLOAD_HOSTS", "").split(",")
-    if host.strip()
+    "127.0.0.1",
+    "localhost",
+    SERVER_HOST,
 }
-# 예: ALLOWED_UPLOAD_HOSTS="127.0.0.1,localhost,192.168.0.10"
 
 CAM_INDEX = int(os.getenv("CAM_INDEX", "0"))
 CAM_W = int(os.getenv("CAM_W", "1280"))
