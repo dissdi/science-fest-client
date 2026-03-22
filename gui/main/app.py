@@ -19,6 +19,9 @@ if "uploaded_file_ids" not in st.session_state:
     st.session_state.uploaded_file_ids = []
 if "uploaded_file_names" not in st.session_state:
     st.session_state.uploaded_file_names = []
+# 세션 키 (세션 변동 인식용)
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
 
 # ==========================================
 # 사이드바: 설정 및 파일 관리
@@ -47,28 +50,39 @@ with st.sidebar:
         # Upload File (파일 업로드)
         st.divider()
         st.subheader("📁 파일 업로드")
-        uploaded_file = st.file_uploader("파일 선택", key="file_uploader")
+        uploaded_files = st.file_uploader(
+            "파일 선택",
+            accept_multiple_files=True,
+            key=f"file_uploader_{st.session_state.uploader_key}"
+        )
 
-        if uploaded_file is not None:
-            # 중복 업로드 방지를 위해 파일명으로 체크
-            if uploaded_file.name not in st.session_state.uploaded_file_names:
-                with st.spinner("파일 업로드 중..."):
-                    try:
-                        files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-                        data = {"session_id": st.session_state.session_id}
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                # 중복 업로드 방지를 위해 파일명으로 체크
+                if uploaded_file.name not in st.session_state.uploaded_file_names:
+                    with st.spinner("파일 업로드 중..."):
+                        try:
+                            files = {
+                                "file": (
+                                    uploaded_file.name,
+                                    uploaded_file.getvalue(),
+                                    uploaded_file.type,
+                                )
+                            }
+                            data = {"session_id": st.session_state.session_id}
 
-                        res = requests.post(f"{BASE_URL}/files", files=files, data=data)
+                            res = requests.post(f"{BASE_URL}/files", files=files, data=data)
 
-                        if res.status_code == 200:
-                            data = res.json()
-                            file_id = data["file_id"]
-                            st.session_state.uploaded_file_ids.append(file_id)
-                            st.session_state.uploaded_file_names.append(uploaded_file.name)
-                            st.success(f"업로드 완료: {uploaded_file.name}")
-                        else:
-                            st.error(f"업로드 실패: {res.text}")
-                    except Exception as e:
-                        st.error(f"업로드 오류: {e}")
+                            if res.status_code == 200:
+                                result = res.json()
+                                file_id = result["file_id"]
+                                st.session_state.uploaded_file_ids.append(file_id)
+                                st.session_state.uploaded_file_names.append(uploaded_file.name)
+                                st.success(f"업로드 완료: {uploaded_file.name}")
+                            else:
+                                st.error(f"업로드 실패: {res.text}")
+                        except Exception as e:
+                            st.error(f"업로드 오류: {e}")
 
         # 현재 첨부된 파일 목록 표시
         if st.session_state.uploaded_file_ids:
@@ -76,7 +90,6 @@ with st.sidebar:
             st.code(st.session_state.uploaded_file_names)
 
         # Reset Chat (대화 초기화)
-        st.divider()
         if st.button("🗑️ 대화 초기화 (Reset)"):
             try:
                 payload = {"session_id": st.session_state.session_id}
@@ -88,6 +101,10 @@ with st.sidebar:
                 st.session_state.messages = []
                 st.session_state.uploaded_file_ids = []
                 st.session_state.uploaded_file_names = []
+
+                # 업로더 위젯 자체를 새로 만듦
+                st.session_state.uploader_key += 1
+
                 st.rerun()
             except Exception as e:
                 st.error(f"초기화 오류: {e}")
