@@ -80,9 +80,11 @@ with st.sidebar:
         if st.button("🗑️ 대화 초기화 (Reset)"):
             try:
                 payload = {"session_id": st.session_state.session_id}
-                requests.post(f"{BASE_URL}/chat/reset", json=payload)
+                resp = requests.post(f"{BASE_URL}/chat/reset", json=payload)
+                resp.raise_for_status()
+                result = resp.json()
 
-                # UI 상태 초기화
+                st.session_state.session_id = result["session_id"]
                 st.session_state.messages = []
                 st.session_state.uploaded_file_ids = []
                 st.session_state.uploaded_file_names = []

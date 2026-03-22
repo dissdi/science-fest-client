@@ -521,7 +521,7 @@ def cleanup_session(session_id: str):
 def chat_reset(data: ResetIn):
     old_sid = data.session_id
     if old_sid not in SESSIONS:
-        raise HTTPException(status_code=403, detail="consent_required")
+        raise HTTPException(status_code=404, detail="invalid_session")
 
     # 1) 기존 세션이 올린 파일들 삭제(실제 파일 + 메모리)
     to_delete = [fid for fid, sid in FILE_OWNERS.items() if sid == old_sid]
