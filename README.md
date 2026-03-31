@@ -10,4 +10,4 @@ SERVER_PORT=
 3. run_client
 
 만약 dashboard에 빈 화면, dummy화면 같은게 올라갈 경우,
-.env의 CAM_INDEX를 0 또는 1로 바꿔볼것
+.env의 CAM_INDEX를 0 또는 1, 2 ...로 바꿔볼것
