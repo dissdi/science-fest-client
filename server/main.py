@@ -106,23 +106,28 @@ async def upload_image(
     filename = f"{timestamp.replace(':', '-')}_{file.filename}"
     file_path = os.path.join(UPLOAD_DIR, filename)
     content = await file.read()
-    # Mosaic image before saving
-    nparr = np.frombuffer(content, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if img is not None:
-        # Mosaic: resize down then up
-        h, w = img.shape[:2]
-        mosaic_scale = 0.05  # 5% size
-        small = cv2.resize(img, (max(1,int(w*mosaic_scale)), max(1,int(h*mosaic_scale))), interpolation=cv2.INTER_LINEAR)
-        mosaic_img = cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
-        _, buf = cv2.imencode('.jpg', mosaic_img)
-        mosaic_bytes = buf.tobytes()
-        async with aiofiles.open(file_path, 'wb') as out_file:
-            await out_file.write(mosaic_bytes)
-    else:
-        # If not an image, just save as is
-        async with aiofiles.open(file_path, 'wb') as out_file:
-            await out_file.write(content)
+    
+    async with aiofiles.open(file_path, 'wb') as out_file:
+        await out_file.write(content)
+    
+    # # Mosaic image before saving
+    # nparr = np.frombuffer(content, np.uint8)
+    # img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    # if img is not None:
+    #     # Mosaic: resize down then up
+    #     h, w = img.shape[:2]
+    #     mosaic_scale = 0.05  # 5% size
+    #     small = cv2.resize(img, (max(1,int(w*mosaic_scale)), max(1,int(h*mosaic_scale))), interpolation=cv2.INTER_LINEAR)
+    #     mosaic_img = cv2.resize(small, (w, h), interpolation=cv2.INTER_NEAREST)
+    #     _, buf = cv2.imencode('.jpg', mosaic_img)
+    #     mosaic_bytes = buf.tobytes()
+    #     async with aiofiles.open(file_path, 'wb') as out_file:
+    #         await out_file.write(mosaic_bytes)
+    # else:
+    #     # If not an image, just save as is
+    #     async with aiofiles.open(file_path, 'wb') as out_file:
+    #         await out_file.write(content)
+    
     event = {
         "type": "image",
         "filename": filename,
