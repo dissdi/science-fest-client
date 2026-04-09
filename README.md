@@ -16,4 +16,4 @@ SERVER_PORT=
 4. 카메라가 찍히고 dashboard에 올라온 자신의 사진을 확인한다.
 
 만약 dashboard에 빈 화면, dummy화면 같은게 올라갈 경우,
-.env의 CAM_INDEX를 0 또는 1, 2 ...로 바꿔볼것
+.env의 CAM_INDEX를 0 또는 1, 2 ...로 바꿔볼것  
