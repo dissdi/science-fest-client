@@ -1,6 +1,5 @@
-# 🤖 LLM Prompt Injection Demo — 대전중앙과학관 Science Festival 2025
+# 🤖 LLM Prompt Injection Demo — 대전중앙과학관 Science Festival 2026
 
-> **충남대학교 × NAIST 연구실** | Jingun Kwon Lab  
 > 대전중앙과학관 과학 축제 체험 부스 — LLM 보안 위협 시연 프로젝트
 
 ---
@@ -178,15 +177,6 @@ uvicorn dashboard:app --host 127.0.0.1 --port 9000 --reload
 - LLM Agent Security
 - Jailbreaking & Alignment
 - Financial LLM Safety
-
----
-
-## 팀
-
-**충남대학교 × NAIST | Jingun Kwon Lab**  
-대전중앙과학관 Science Festival 2025 참가
-
----
 
 ## 라이선스
 
