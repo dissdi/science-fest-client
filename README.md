@@ -1,6 +1,6 @@
 # 🤖 LLM Prompt Injection Demo — 대전중앙과학관 Science Festival 2026
 
-> 대전중앙과학관 과학 축제 체험 부스 — LLM 보안 위협 시연 프로젝트
+> 대전 국립중앙과학관 과학 축제 체험 부스 — LLM 보안 위협 시연 프로젝트
 
 ---
 
