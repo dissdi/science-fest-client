@@ -176,7 +176,6 @@ uvicorn dashboard:app --host 127.0.0.1 --port 9000 --reload
 - Prompt Injection (간접 프롬프트 인젝션)
 - LLM Agent Security
 - Jailbreaking & Alignment
-- Financial LLM Safety
 
 ## 라이선스
 
